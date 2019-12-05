@@ -1,11 +1,12 @@
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 
 public class Cast {
 
     private byte[] key = new byte[16];
     private byte[] message = new byte[8];
     private byte[] crypto = new byte[8];
-    private byte[] decrypto = new byte[8];
+    private byte[] plaintext = new byte[8];
 
     private int[] S1 = SBox.S1;
     private int[] S2 = SBox.S2;
@@ -19,6 +20,9 @@ public class Cast {
     private int rounds = 0;
     private Key K = new Key();
 
+    private ArrayList<byte[]> messageList = new ArrayList<>();
+    private ArrayList<byte[]> cryptoList = new ArrayList<>();
+    private ArrayList<byte[]> plaintextList = new ArrayList<>();
 
     public Cast(byte[] key, byte[] message) throws Exception {
         if (key.length < 5 | key.length > 16)
@@ -39,58 +43,85 @@ public class Cast {
         this.message = message.clone();
     }
 
-    private void unscramble(int x, byte[] array, int start, int stop) {
-        byte[] tmp = ByteBuffer.allocate(4).putInt(x).array();
-        for (int i = start, j = 0; i < stop; i++, j++)
-            array[i] = (byte) (tmp[j] & 0xFF);
-    }
+    public Cast(byte[] key, ArrayList<byte[]> message) throws Exception {
+        if (key.length < 5 | key.length > 16)
+            throw new Exception("Wrong key size (in byte)!");
 
-    public void printResult(){
-        for (int i = 0; i < crypto.length; i++) {
-            System.out.print(Integer.toHexString(crypto[i] & 0XFF) + " ");
-        }
-        System.out.println();
-    }
+        if (key.length < 16) {
+            for (int i = 0; i < key.length; i++) {
+                this.key[i] = key[i];
+            }
+        } else
+            this.key = key.clone();
 
-    public void printResult1(){
-        for (int i = 0; i < decrypto.length; i++) {
-            System.out.print(Integer.toHexString(decrypto[i] & 0XFF) + " ");
-        }
-        System.out.println();
+        if (key.length <= 10)
+            rounds = 12;
+        else
+            rounds = 16;
+
+        this.messageList = message;
     }
 
     public void encrypt(){
-        int L = ByteBuffer.wrap(message, 0, 4).getInt();
-        int R = ByteBuffer.wrap(message, 4, 4).getInt();
+        if (!messageList.isEmpty()) {
+            for (int i = 0; i < messageList.size(); i++) {
+                cryptoList.add(i, encryptLogic(messageList.get(i)));
+            }
+        } else {
+            crypto = encryptLogic(message);
+        }
+    }
 
-        L ^= f1(R, K.getKm(  0), K.getKr(  0));
-        R ^= f2(L, K.getKm(  1), K.getKr(  1)); // round 2
-        L ^= f3(R, K.getKm(  2), K.getKr(  2));
-        R ^= f1(L, K.getKm(  3), K.getKr(  3)); // round 4
-        L ^= f2(R, K.getKm(  4), K.getKr(  4));
-        R ^= f3(L, K.getKm(  5), K.getKr(  5)); // round 6
-        L ^= f1(R, K.getKm(  6), K.getKr(  6));
-        R ^= f2(L, K.getKm(  7), K.getKr(  7)); // round 8
-        L ^= f3(R, K.getKm(  8), K.getKr(  8));
-        R ^= f1(L, K.getKm(  9), K.getKr(  9)); // round 10
-        L ^= f2(R, K.getKm(  10), K.getKr(  10));
-        R ^= f3(L, K.getKm(  11), K.getKr(  11)); // round 12
+    private byte[] encryptLogic(byte[] data){
+
+        byte[] result = new byte[8];
+
+        int L = ByteBuffer.wrap(data, 0, 4).getInt();
+        int R = ByteBuffer.wrap(data, 4, 4).getInt();
+
+        L ^= f1(R, K.getKm(0 ), K.getKr(0 ));
+        R ^= f2(L, K.getKm(1 ), K.getKr(1 )); // round 2
+        L ^= f3(R, K.getKm(2 ), K.getKr(2 ));
+        R ^= f1(L, K.getKm(3 ), K.getKr(3 )); // round 4
+        L ^= f2(R, K.getKm(4 ), K.getKr(4 ));
+        R ^= f3(L, K.getKm(5 ), K.getKr(5 )); // round 6
+        L ^= f1(R, K.getKm(6 ), K.getKr(6 ));
+        R ^= f2(L, K.getKm(7 ), K.getKr(7 )); // round 8
+        L ^= f3(R, K.getKm(8 ), K.getKr(8 ));
+        R ^= f1(L, K.getKm(9 ), K.getKr(9 )); // round 10
+        L ^= f2(R, K.getKm(10), K.getKr(10));
+        R ^= f3(L, K.getKm(11), K.getKr(11)); // round 12
 
         if (rounds == 16){
-            L ^= f1(R, K.getKm(  12), K.getKr(  12));
-            R ^= f2(L, K.getKm(  13), K.getKr(  13)); // round 14
-            L ^= f3(R, K.getKm(  14), K.getKr(  14));
-            R ^= f1(L, K.getKm(  15), K.getKr(  15)); // round 16
+            L ^= f1(R, K.getKm(12), K.getKr(12));
+            R ^= f2(L, K.getKm(13), K.getKr(13)); // round 14
+            L ^= f3(R, K.getKm(14), K.getKr(14));
+            R ^= f1(L, K.getKm(15), K.getKr(15)); // round 16
         }
 
-        unscramble(R, crypto, 0, 4);
-        unscramble(L, crypto, 4, 8);
+        unscramble(R, result, 0, 4);
+        unscramble(L, result, 4, 8);
+
+        return result;
     }
 
     public void decrypt(){
+        if (!cryptoList.isEmpty()) {
+            for (int i = 0; i < cryptoList.size(); i++) {
+                plaintextList.add(i, decryptLogic(cryptoList.get(i)));
+            }
+        } else {
+            plaintext = decryptLogic(crypto);
+        }
+        
+    }
 
-        int L = ByteBuffer.wrap(crypto, 0, 4).getInt();
-        int R = ByteBuffer.wrap(crypto, 4, 4).getInt();
+    private byte[] decryptLogic(byte[] data){
+        
+        byte[] result = new byte[8];
+
+        int L = ByteBuffer.wrap(data, 0, 4).getInt();
+        int R = ByteBuffer.wrap(data, 4, 4).getInt();
         
         if (rounds == 16){
             L ^= f1(R, K.getKm(15), K.getKr(15));
@@ -112,12 +143,47 @@ public class Cast {
         L ^= f2(R, K.getKm(1), K.getKr(1));
         R ^= f1(L, K.getKm(0), K.getKr(0));
 
-        unscramble(R, decrypto, 0, 4);
-        unscramble(L, decrypto, 4, 8);
-  }
+        unscramble(R, result, 0, 4);
+        unscramble(L, result, 4, 8);
 
-    private final int f1(int I, int m, int r)
-    {
+        return result;
+    }
+
+    private void unscramble(int x, byte[] array, int start, int stop) {
+        byte[] tmp = ByteBuffer.allocate(4).putInt(x).array();
+        for (int i = start, j = 0; i < stop; i++, j++)
+            array[i] = (byte) (tmp[j] & 0xFF);
+    }
+
+    public void printCryptotext(){
+        System.out.print("Cryptotext -> ");
+        for (int i = 0; i < crypto.length; i++) {
+            System.out.print(Integer.toHexString(crypto[i] & 0XFF) + " ");
+        }
+        System.out.println();
+    }
+
+    public void printPlaintext(){
+        System.out.print("Plaintext -> ");
+        for (int i = 0; i < plaintext.length; i++) {
+            System.out.print(Integer.toHexString(plaintext[i] & 0XFF) + " ");
+        }
+        System.out.println();
+    }
+
+    public byte[] getCryptoText(){
+        return crypto;
+    }
+
+    public ArrayList<byte[]> getCryptoTextList() {
+        return cryptoList;
+    }
+
+    public ArrayList<byte[]> getDecryptoTextList() {
+        return plaintextList;
+    }
+
+    private final int f1(int I, int m, int r){
       I = m + I;
       I = I << r | I >>> (32 - r);
       return (((S1[(I >>> 24) & 0xFF])
@@ -126,8 +192,7 @@ public class Cast {
               + S4[ I         & 0xFF];
     }
   
-    private final int f2(int I, int m, int r)
-    {
+    private final int f2(int I, int m, int r){
       I = m ^ I;
       I = I << r | I >>> (32 - r);
       return (((S1[(I >>> 24) & 0xFF])
@@ -136,8 +201,7 @@ public class Cast {
               ^ S4[ I         & 0xFF];
     }
   
-    private final int f3(int I, int m, int r)
-    {
+    private final int f3(int I, int m, int r){
       I = m - I;
       I = I << r | I >>> (32 - r);
       return (((S1[(I >>> 24) & 0xFF])
@@ -146,8 +210,7 @@ public class Cast {
               - S4[ I         & 0xFF];
     }
 
-    public void makeKey()
-    {
+    public void makeKey(){
         int z0z1z2z3, z4z5z6z7, z8z9zAzB, zCzDzEzF;
         byte[] x = new byte[16];
         byte[] z = new byte[16];

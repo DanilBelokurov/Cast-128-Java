@@ -22,11 +22,4 @@ public class Key{
 	public int getKr(int index){
 		return Kr[index];
 	}
-
-	public void printKey(){
-		for (int i = 0; i < K.length; i++) {
-			System.out.print((K[i] & 0xFF)+ " ");
-		}
-		System.out.println();
-	}
 }
